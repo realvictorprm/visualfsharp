@@ -38,13 +38,13 @@ type internal FSharpEditorFormattingService
             
             let line = sourceText.Lines.[sourceText.Lines.IndexOf position]
                 
-            let defines = CompilerEnvironment.GetCompilationDefinesForEditing(filePath, parsingOptions)
+            let defines = CompilerEnvironment.GetCompilationDefinesForEditing parsingOptions
 
             let tokens = Tokenizer.tokenizeLine(documentId, sourceText, line.Start, filePath, defines)
 
             let! firstMeaningfulToken = 
                 tokens
-                |> List.tryFind (fun x ->
+                |> Array.tryFind (fun x ->
                     x.Tag <> FSharpTokenTag.WHITESPACE &&
                     x.Tag <> FSharpTokenTag.COMMENT &&
                     x.Tag <> FSharpTokenTag.LINE_COMMENT)

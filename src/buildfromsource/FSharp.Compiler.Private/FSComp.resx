@@ -363,7 +363,7 @@
   <data name="tastUnexpectedByRef" xml:space="preserve">
     <value>Unexpected use of a byref-typed variable</value>
   </data>
-  <data name="tastValueMustBeLocalAndMutable" xml:space="preserve">
+  <data name="tastValueMustBeMutable" xml:space="preserve">
     <value>A value must be mutable in order to mutate the contents or take the address of a value type, e.g. 'let mutable x = ...'</value>
   </data>
   <data name="tastInvalidMutationOfConstant" xml:space="preserve">
@@ -596,9 +596,6 @@
   </data>
   <data name="typrelCannotResolveImplicitGenericInstantiation" xml:space="preserve">
     <value>The implicit instantiation of a generic construct at or near this point could not be resolved because it could resolve to multiple unrelated types, e.g. '{0}' and '{1}'. Consider using type annotations to resolve the ambiguity</value>
-  </data>
-  <data name="typrelCannotResolveAmbiguityInOverloadedOperator" xml:space="preserve">
-    <value>Could not resolve the ambiguity inherent in the use of the operator '{0}' at or near this program point. Consider using type annotations to resolve the ambiguity.</value>
   </data>
   <data name="typrelCannotResolveAmbiguityInPrintf" xml:space="preserve">
     <value>Could not resolve the ambiguity inherent in the use of a 'printf'-style format string</value>
@@ -3382,7 +3379,7 @@
     <value>No implementation files specified</value>
   </data>
   <data name="fscBadAssemblyVersion" xml:space="preserve">
-    <value>An {0} specified version '{1}', but this value is invalid and has been ignored</value>
+    <value>The attribute {0} specified version '{1}', but this value is invalid and has been ignored</value>
   </data>
   <data name="fscTwoResourceManifests" xml:space="preserve">
     <value>Conflicting options specified: 'win32manifest' and 'win32res'. Only one of these can be used.</value>
@@ -4155,6 +4152,9 @@
   <data name="keywordDescriptionMatch" xml:space="preserve">
     <value>Used to branch by comparing a value to a pattern.</value>
   </data>
+  <data name="keywordDescriptionMatchBang" xml:space="preserve">
+    <value>Used in computation expressions to pattern match directly over the result of another computation expression.</value>
+  </data>
   <data name="keywordDescriptionMember" xml:space="preserve">
     <value>Used to declare a property or method in an object type.</value>
   </data>
@@ -4302,5 +4302,17 @@
   </data>
   <data name="pickleUnexpectedNonZero" xml:space="preserve">
     <value>An error occurred while reading the F# metadata of assembly '{0}'. A reserved construct was utilized. You may need to upgrade your F# compiler or use an earlier version of the assembly that doesn't make use of a specific construct.</value>
+  </data>
+  <data name="tcTupleMemberNotNormallyUsed" xml:space="preserve">
+    <value>This method or property is not normally used from F# code, use an explicit tuple pattern for deconstruction instead.</value>
+  </data>
+  <data name="implicitlyDiscardedInSequenceExpression" xml:space="preserve">
+    <value>This expression returns a value of type '{0}' but is implicitly discarded. Consider using 'let' to bind the result to a name, e.g. 'let result = expression'. If you intended to use the expression as a value in the sequence then use an explicit 'yield'.</value>
+  </data>
+  <data name="implicitlyDiscardedSequenceInSequenceExpression" xml:space="preserve">
+    <value>This expression returns a value of type '{0}' but is implicitly discarded. Consider using 'let' to bind the result to a name, e.g. 'let result = expression'. If you intended to use the expression as a value in the sequence then use an explicit 'yield!'.</value>
+  </data>
+  <data name="ilreadFileChanged" xml:space="preserve">
+    <value>The file '{0}' changed on disk unexpectedly, please reload.</value>
   </data>
 </root>
