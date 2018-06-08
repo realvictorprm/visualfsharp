@@ -569,9 +569,12 @@ type TrackErrorsBuilder() =
     member x.Bind(res, k) = res ++ k
     member x.Return res = ResultD res
     member x.ReturnFrom res = res
+    member x.Delay(func) = fun () -> func ()
     member x.For(seq, k) = IterateD k seq
+    member x.Combine(expr1, expr2) = expr1 ++ expr2
     member x.While(gd, k) = WhileD gd k
     member x.Zero()  = CompleteD
+    member x.Run(funcToRun) = funcToRun()
 
 let trackErrors = TrackErrorsBuilder()
     
