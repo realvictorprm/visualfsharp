@@ -1556,6 +1556,9 @@ let OutputPhasedErrorR (os:StringBuilder) (err:PhasedDiagnostic) =
       | MSBuildReferenceResolutionError(code, message, _) -> 
           os.Append(MSBuildReferenceResolutionErrorE().Format message code) |> ignore
 
+#if DEBUG
+      | DebugInformation(msg) -> os.Append(msg) |> ignore
+#endif
       // Strip TargetInvocationException wrappers
       | :? System.Reflection.TargetInvocationException as e -> 
           OutputExceptionR os e.InnerException
@@ -4615,11 +4618,19 @@ type TcImports(tcConfigP:TcConfigProvider, initialResolutions:TcAssemblyResoluti
             let tryFile speculativeFileName = 
                 let foundFile = tcImports.TryResolveAssemblyReference (ctok, AssemblyReference (m, speculativeFileName, None), ResolveAssemblyReferenceMode.Speculative)
                 match foundFile with 
+#if DEBUG
+                | OkResult (warns, res, _) ->
+#else
                 | OkResult (warns, res) ->
+#endif
                     ReportWarnings warns
                     tcImports.RegisterAndImportReferencedAssemblies(ctok, res) |> Cancellable.runWithoutCancellation |> ignore
                     true
+#if DEBUG
+                | ErrorResult (_warns, _err, _) -> 
+#else
                 | ErrorResult (_warns, _err) -> 
+#endif
                     // Throw away warnings and errors - this is speculative loading
                     false
 

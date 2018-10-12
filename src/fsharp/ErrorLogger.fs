@@ -93,6 +93,7 @@ exception UnresolvedReferenceError of (*assemblyname*) string * range
 exception UnresolvedPathReferenceNoRange of (*assemblyname*) string * (*path*) string
 exception UnresolvedPathReference of (*assemblyname*) string * (*path*) string * range
 
+exception DebugInformation of string
 
 
 exception ErrorWithSuggestions of (int * string) * range * string * Suggestions with   // int is e.g. 191 in FS0191 
@@ -383,6 +384,11 @@ module ErrorLoggerExtensions =
                 raise exn 
             | _ -> x.DiagnosticSink(PhasedDiagnostic.Create(exn, CompileThreadStatic.BuildPhase), false)
 
+#if DEBUG
+        member x.DebugInformation msg = 
+            x.DiagnosticSink(PhasedDiagnostic.Create(DebugInformation(msg), CompileThreadStatic.BuildPhase), false)
+#endif
+
         member x.Error   exn = 
             x.ErrorR exn
             raise (ReportedError (Some exn))
@@ -459,6 +465,11 @@ let SetThreadErrorLoggerNoUnwind(errorLogger)     = CompileThreadStatic.ErrorLog
 
 // Global functions are still used by parser and TAST ops.
 
+#if DEBUG
+/// Raises a warning with error recovery and returns unit.
+let debugInfo msg = CompileThreadStatic.ErrorLogger.DebugInformation msg
+#endif
+
 /// Raises an exception with error recovery and returns unit.
 let errorR exn = CompileThreadStatic.ErrorLogger.ErrorR exn
 
@@ -509,12 +520,18 @@ let conditionallySuppressErrorReporting cond f = if cond then suppressErrorRepor
 // Errors as data: Sometimes we have to reify errors as data, e.g. if backtracking 
 //
 // REVIEW: consider using F# computation expressions here
-
+#if DEBUG
+[<NoEquality; NoComparison>]
+type OperationResult<'T> = 
+    | OkResult of (* warnings: *) exn list * 'T * string list
+    | ErrorResult of (* warnings: *) exn list * exn * string list
+#else
 [<NoEquality; NoComparison>]
 type OperationResult<'T> = 
     | OkResult of (* warnings: *) exn list * 'T
     | ErrorResult of (* warnings: *) exn list * exn
-    
+#endif
+
 type ImperativeOperationResult = OperationResult<unit>
 
 let ReportWarnings warns = 
@@ -522,22 +539,54 @@ let ReportWarnings warns =
     | [] -> () // shortcut in common case
     | _ -> List.iter warning warns
 
+#if DEBUG
+let ReportDebugMsgs msgs = 
+    match msgs with 
+    | [] -> () // shortcut in common case
+    | _ -> List.iter debugInfo msgs
+
+let CommitOperationResult res = 
+    match res with 
+    | OkResult (warns, res, msgs) -> ReportDebugMsgs msgs; ReportWarnings warns; res
+    | ErrorResult (warns, err, msgs) -> ReportDebugMsgs msgs; ReportWarnings warns; error err
+#else
 let CommitOperationResult res = 
     match res with 
     | OkResult (warns, res) -> ReportWarnings warns; res
     | ErrorResult (warns, err) -> ReportWarnings warns; error err
+#endif
 
 let RaiseOperationResult res : unit = CommitOperationResult res
 
+#if DEBUG
+let CompleteD = OkResult([], (), [])
+let CompleteDebugD msg = OkResult([], (), [msg])
+let ErrorD err = ErrorResult([], err, [])
+let WarnD err = OkResult([err], (), [])
+let ResultD x = OkResult([], x, [])
+let CheckNoErrorsAndGetWarnings res = 
+    match res with 
+    | OkResult (warns, _, _) -> Some warns
+    | ErrorResult _ -> None 
+/// The bind in the monad. Stop on first error. Accumulate warnings and continue. 
+let (++) res f = 
+    match res with 
+    | OkResult([], res, []) -> (* tailcall *) f res 
+    | OkResult(warns, res, msg) -> 
+        match f res with 
+        | OkResult(warns2, res2, msg2) -> OkResult(warns@warns2, res2, msg@msg2)
+        | ErrorResult(warns2, err, msg2) -> ErrorResult(warns@warns2, err, msg@msg2)
+    | ErrorResult(warns, err, msg) -> 
+        ErrorResult(warns, err, msg)
+#else
+let CompleteD = OkResult([], ())
 let ErrorD err = ErrorResult([], err)
 let WarnD err = OkResult([err], ())
-let CompleteD = OkResult([], ())
 let ResultD x = OkResult([], x)
 let CheckNoErrorsAndGetWarnings res = 
     match res with 
     | OkResult (warns, _) -> Some warns
     | ErrorResult _ -> None 
-
 /// The bind in the monad. Stop on first error. Accumulate warnings and continue. 
 let (++) res f = 
     match res with 
@@ -548,6 +597,8 @@ let (++) res f =
         | ErrorResult(warns2, err) -> ErrorResult(warns@warns2, err)
     | ErrorResult(warns, err) -> 
         ErrorResult(warns, err)
+#endif
+
         
 /// Stop on first error. Accumulate warnings and continue. 
 let rec IterateD f xs = 
@@ -596,6 +647,18 @@ let rec Iterate2D f xs ys =
     | h1 :: t1, h2::t2 -> f h1 h2 ++ (fun () -> Iterate2D f t1 t2) 
     | _ -> failwith "Iterate2D"
 
+
+#if DEBUG
+/// Keep the warnings, propagate the error to the exception continuation.
+let TryD f g = 
+    match f() with
+    | ErrorResult(warns, err, msg) ->
+        trackErrors {
+            do! OkResult(warns, (), msg)
+            return! g err
+        }
+    | res -> res
+#else
 /// Keep the warnings, propagate the error to the exception continuation.
 let TryD f g = 
     match f() with
@@ -605,6 +668,7 @@ let TryD f g =
             return! g err
         }
     | res -> res
+#endif
 
 let rec RepeatWhileD ndeep body = body ndeep ++ (fun x -> if x then RepeatWhileD (ndeep+1) body else CompleteD) 
 let AtLeastOneD f l = MapD f l ++ (fun res -> ResultD (List.exists id res))
@@ -612,11 +676,18 @@ let AtLeastOneD f l = MapD f l ++ (fun res -> ResultD (List.exists id res))
 
 [<RequireQualifiedAccess>]
 module OperationResult =
+
+#if DEBUG
+    let inline ignore (res: OperationResult<'a>) =
+        match res with
+        | OkResult(warnings, _, msg) -> OkResult(warnings, (), msg)
+        | ErrorResult(warnings, err, msg) -> ErrorResult(warnings, err, msg)
+#else
     let inline ignore (res: OperationResult<'a>) =
         match res with
         | OkResult(warnings, _) -> OkResult(warnings, ())
         | ErrorResult(warnings, err) -> ErrorResult(warnings, err)
-
+#endif
     // Alternative ignore
     (* 
     let inline ignore (res: OperationResult<'a>) : OperationResult<'a> =

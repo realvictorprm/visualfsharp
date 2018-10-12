@@ -1642,21 +1642,33 @@ module internal MagicAssemblyResolution =
                    let searchResult = tcImports.TryFindExistingFullyQualifiedPathBySimpleAssemblyName (ctok, simpleAssemName)
 
                    match searchResult with
+#if DEBUG
+                   | Some r -> OkResult ([], Choice1Of2 r, [])
+#else
                    | Some r -> OkResult ([], Choice1Of2 r)
+#endif
                    | _ -> 
 
                    // OK, try to resolve as a .dll
                    let searchResult = tcImports.TryResolveAssemblyReference (ctok, AssemblyReference (m, assemblyReferenceTextDll, None), ResolveAssemblyReferenceMode.Speculative)
 
                    match searchResult with
+#if DEBUG
+                   | OkResult (warns,[r], msg) -> OkResult (warns, Choice1Of2 r.resolvedPath, msg)
+#else
                    | OkResult (warns,[r]) -> OkResult (warns, Choice1Of2 r.resolvedPath)
+#endif
                    | _ -> 
 
                    // OK, try to resolve as a .exe
                    let searchResult = tcImports.TryResolveAssemblyReference (ctok, AssemblyReference (m, assemblyReferenceTextExe, None), ResolveAssemblyReferenceMode.Speculative)
 
                    match searchResult with
+#if DEBUG
+                   | OkResult (warns, [r], msg) -> OkResult (warns, Choice1Of2 r.resolvedPath, msg)
+#else
                    | OkResult (warns, [r]) -> OkResult (warns, Choice1Of2 r.resolvedPath)
+#endif
                    | _ -> 
 
                    if !progress then fsiConsoleOutput.uprintfn "ATTEMPT LOAD, assemblyReferenceTextDll = %s" assemblyReferenceTextDll
@@ -1671,22 +1683,38 @@ module internal MagicAssemblyResolution =
                              else None ))
 
                    match searchResult with
+#if DEBUG
+                   | Some (OkResult (warns,[r], msg)) -> OkResult (warns, Choice1Of2 r.resolvedPath, msg)
+#else
                    | Some (OkResult (warns,[r])) -> OkResult (warns, Choice1Of2 r.resolvedPath)
+#endif
                    | _ -> 
 
 #if !NO_EXTENSIONTYPING
                    match tcImports.TryFindProviderGeneratedAssemblyByName(ctok, simpleAssemName) with
+#if DEBUG
+                   | Some(assembly) -> OkResult([],Choice2Of2 assembly, [])
+#else
                    | Some(assembly) -> OkResult([],Choice2Of2 assembly)
+#endif
                    | None -> 
 #endif
                    
                    // As a last resort, try to find the reference without an extension
                    match tcImports.TryFindExistingFullyQualifiedPathByExactAssemblyRef(ctok, ILAssemblyRef.Create(simpleAssemName,None,None,false,None,None)) with
                    | Some(resolvedPath) -> 
+#if DEBUG
+                       OkResult([],Choice1Of2 resolvedPath,[])
+#else
                        OkResult([],Choice1Of2 resolvedPath)
+#endif
                    | None -> 
                    
+#if DEBUG
+                   ErrorResult([],Failure (FSIstrings.SR.fsiFailedToResolveAssembly(simpleAssemName)), [])
+#else
                    ErrorResult([],Failure (FSIstrings.SR.fsiFailedToResolveAssembly(simpleAssemName)))
+#endif
                            
                match overallSearchResult with 
                | ErrorResult _ -> null

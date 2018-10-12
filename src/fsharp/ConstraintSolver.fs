@@ -461,7 +461,12 @@ let rec TransactStaticReq (csenv:ConstraintSolverEnv) (trace:OptionalTrace) (tpr
 and SolveTypStaticReqTypar (csenv:ConstraintSolverEnv) trace req (tpr:Typar) =
     let orig = tpr.StaticReq
     let req2 = JoinTyparStaticReq req orig
+#if DEBUG
+    if orig <> req2 then TransactStaticReq csenv trace tpr req2 
+    else CompleteDebugD (sprintf "SolveTypStaticReqTypar; tpr:%s, req: %A" (tpr.DisplayName) req)
+#else
     if orig <> req2 then TransactStaticReq csenv trace tpr req2 else CompleteD
+#endif
 
 and SolveTypStaticReq (csenv:ConstraintSolverEnv) trace req ty =
     match req with 
@@ -475,7 +480,11 @@ and SolveTypStaticReq (csenv:ConstraintSolverEnv) trace req ty =
         | _ -> 
             match tryAnyParTy csenv.g ty with
             | ValueSome tpr -> SolveTypStaticReqTypar csenv trace req tpr
+#if DEBUG
+            | ValueNone -> CompleteDebugD (sprintf "SolveTypStaticReq: %s" (ty.ToString()))
+#else
             | ValueNone -> CompleteD
+#endif
       
 let TransactDynamicReq (trace:OptionalTrace) (tpr:Typar) req = 
     let orig = tpr.DynamicReq
@@ -983,8 +992,13 @@ and SolveTyparSubtypeOfType (csenv:ConstraintSolverEnv) ndeep m2 trace tp ty1 =
     else
         AddConstraint csenv ndeep m2 trace tp (TyparConstraint.CoercesTo(ty1, csenv.m))
 
+#if DEBUG
+and DepthCheck ndeep m = 
+  if ndeep > 300 then error(Error(FSComp.SR.csTypeInferenceMaxDepth(), m)) else CompleteDebugD (sprintf "DepthCheck, n = %d, range: %s" ndeep (m.ToString()))
+#else
 and DepthCheck ndeep m = 
   if ndeep > 300 then error(Error(FSComp.SR.csTypeInferenceMaxDepth(), m)) else CompleteD
+#endif
 
 // If this is a type that's parameterized on a unit-of-measure (expected to be numeric), unify its measure with 1
 and SolveDimensionlessNumericType (csenv:ConstraintSolverEnv) ndeep m2 trace ty =
@@ -1399,7 +1413,12 @@ and SolveMemberConstraint (csenv:ConstraintSolverEnv) ignoreUnresolvedOverload p
                             else AddMemberConstraint csenv ndeep m2 trace traitInfo support frees
                         return!
                             match errors with
-                            | ErrorResult (_, UnresolvedOverloading _) when not ignoreUnresolvedOverload && (not (nm = "op_Explicit" || nm = "op_Implicit")) -> ErrorD LocallyAbortOperationThatFailsToResolveOverload
+#if DEBUG
+                            | ErrorResult (_, UnresolvedOverloading _, _) when
+#else
+                            | ErrorResult (_, UnresolvedOverloading _) when 
+#endif
+                                not ignoreUnresolvedOverload && (not (nm = "op_Explicit" || nm = "op_Implicit")) -> ErrorD LocallyAbortOperationThatFailsToResolveOverload
                             | _ -> ResultD TTraitUnsolved
                       }
         
@@ -2290,7 +2309,11 @@ and ResolveOverloading
                          reqdRetTyOpt 
                          calledMeth) with
           | [(calledMeth, warns, _)] ->
+#if DEBUG
+              Some calledMeth, OkResult (warns, (), []), NoTrace // Can't re-play the trace since ArgsEquivInsideUndo was used
+#else
               Some calledMeth, OkResult (warns, ()), NoTrace // Can't re-play the trace since ArgsEquivInsideUndo was used
+#endif
 
           | _ -> 
             // Now determine the applicable methods.
@@ -2346,12 +2369,20 @@ and ResolveOverloading
                                              reqdRetTyOpt 
                                              calledMeth) with 
                             | OkResult _ -> None
+#if DEBUG
+                            | ErrorResult(_, exn, _) -> Some (calledMeth, exn))
+#else
                             | ErrorResult(_, exn) -> Some (calledMeth, exn))
+#endif
 
                 None, ErrorD (failOverloading (FSComp.SR.csNoOverloadsFound methodName) errors), NoTrace
 
             | [(calledMeth, warns, t)] ->
+#if DEBUG
+                Some calledMeth, OkResult (warns, (), []), WithTrace t
+#else
                 Some calledMeth, OkResult (warns, ()), WithTrace t
+#endif
 
             | applicableMeths -> 
                 
@@ -2485,8 +2516,12 @@ and ResolveOverloading
                            Some candidate
                         else 
                            None) 
-                match bestMethods with 
+                match bestMethods with
+#if DEBUG
+                | [(calledMeth, warns, t)] -> Some calledMeth, OkResult (warns, (), []), WithTrace t
+#else
                 | [(calledMeth, warns, t)] -> Some calledMeth, OkResult (warns, ()), WithTrace t
+#endif
                 | bestMethods -> 
                     let methodNames =
                         let methods = 
