@@ -1387,13 +1387,19 @@ and SolveMemberConstraint (csenv:ConstraintSolverEnv) ignoreUnresolvedOverload p
               | _ -> 
                   let support = GetSupportOfMemberConstraint csenv traitInfo
                   let frees = GetFreeTyparsOfMemberConstraint csenv traitInfo
+                  let headStaticReqVarExists =
+                      frees
+                      |> List.exists (fun (t:Typar) -> 
+                            match t.StaticReq with
+                            | HeadTypeStaticReq _ -> true
+                            | _ -> false)
                   // If there's nothing left to learn then raise the errors 
-                  if (permitWeakResolution && isNil support) || isNil frees then do! errors
+                  if (permitWeakResolution && isNil support && not headStaticReqVarExists) || isNil frees then do! errors
                   // Otherwise re-record the trait waiting for canonicalization 
                   else do! AddMemberConstraint csenv ndeep m2 trace traitInfo support frees
                   return!
                        match errors with
-                       | ErrorResult (_, UnresolvedOverloading _) when not ignoreUnresolvedOverload && (not (nm = "op_Explicit" || nm = "op_Implicit")) -> ErrorD LocallyAbortOperationThatFailsToResolveOverload
+                       | ErrorResult (_, UnresolvedOverloading _) when not ignoreUnresolvedOverload && not(nm = "op_Explicit" || nm = "op_Implicit") -> ErrorD LocallyAbortOperationThatFailsToResolveOverload
                        | _ -> ResultD TTraitUnsolved
      }
     return! RecordMemberConstraintSolution csenv.SolverState m trace traitInfo res
